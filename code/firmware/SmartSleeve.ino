@@ -14,9 +14,11 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 
-// ─── WiFi Credentials ────────────────────────────────────────────────────────
-const char* SSID     = "YOUR_WIFI_SSID";
-const char* PASSWORD = "YOUR_WIFI_PASSWORD";
+// ─── Access Point Credentials ────────────────────────────────────────────────
+// The ESP32 broadcasts its own hotspot — no router needed.
+// Connect your phone to this network, then open the web app at 192.168.4.1
+const char* AP_SSID     = "SCS-Device";
+const char* AP_PASSWORD = "scs12345";   // min 8 chars, leave "" for open network
 
 // ─── Pin Definitions ─────────────────────────────────────────────────────────
 const int AIN1 = 25;
@@ -96,11 +98,13 @@ void setup() {
 
   analogReadResolution(12);
 
-  // Connect to WiFi
-  WiFi.begin(SSID, PASSWORD);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
-  Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
+  // Start Access Point
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
+  IPAddress ip = WiFi.softAPIP();
+  Serial.printf("AP started — SSID: %s\n", AP_SSID);
+  Serial.printf("Connect your phone to that network, then open:\n");
+  Serial.printf("  Web app:   http://%s\n", ip.toString().c_str());
+  Serial.printf("  WebSocket: ws://%s/ws\n", ip.toString().c_str());
 
   // WebSocket
   ws.onEvent(onWsEvent);
@@ -109,12 +113,12 @@ void setup() {
   // Optional: serve a redirect at the root so you can open the IP in a browser
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(200, "text/plain",
-      "Smart Sleeve WebSocket Server running.\n"
-      "Open the web app and connect to: " + WiFi.localIP().toString());
+      "SCS WebSocket server running.\n"
+      "In the web app, connect to: 192.168.4.1");
   });
 
   server.begin();
-  Serial.println("WebSocket server started on ws://" + WiFi.localIP().toString() + "/ws");
+  Serial.println("WebSocket server ready at ws://192.168.4.1/ws");
 }
 
 // ─── Loop ────────────────────────────────────────────────────────────────────

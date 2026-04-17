@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import GaugesPanel from './components/GaugesPanel';
-import MotorPanel  from './components/MotorPanel';
 import { useWebSocket } from './hooks/useWebSocket';
 
 const CONN_META = {
@@ -11,19 +10,22 @@ const CONN_META = {
 };
 
 export default function App() {
-  const [tab, setTab] = useState('sensors');
-  const [ip,  setIp]  = useState('');
+  const [ip,         setIp]         = useState('');
+  const [manualOpen, setManualOpen] = useState(false);
 
-  const {
-    sensors,
-    motorStatus,
-    connStatus,
-    connect,
-    sendCmd,
-    startDemo,
-  } = useWebSocket();
+  const { sensors, connStatus, connect, sendCmd, startDemo, pauseDemo, resumeDemo } = useWebSocket();
 
   const meta = CONN_META[connStatus];
+
+  const toggleManual = () => {
+    if (manualOpen) {
+      sendCmd('stop');  // resume auto-control on ESP32
+      resumeDemo();     // resume demo sensor updates
+    } else {
+      pauseDemo();      // freeze demo sensor updates
+    }
+    setManualOpen(prev => !prev);
+  };
 
   return (
     <div className="app">
@@ -39,43 +41,27 @@ export default function App() {
             </p>
           </div>
         </div>
-
         <div className="conn-row">
           <input
             className="ip-input"
             value={ip}
             onChange={(e) => setIp(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && connect(ip)}
-            placeholder="192.168.x.x"
+            placeholder="192.168.4.1"
             inputMode="decimal"
             aria-label="ESP32 IP address"
           />
-          <button className="btn-sm"             onClick={() => connect(ip)}>Connect</button>
-          <button className="btn-sm btn-sm--muted" onClick={startDemo}>Demo</button>
+          <button className="btn-sm"                onClick={() => connect(ip)}>Connect</button>
+          <button className="btn-sm btn-sm--muted"   onClick={startDemo}>Demo</button>
         </div>
       </header>
 
-      <nav className="tabs" role="tablist">
-        <button
-          role="tab"
-          className={`tab ${tab === 'sensors' ? 'tab--active' : ''}`}
-          onClick={() => setTab('sensors')}
-          aria-selected={tab === 'sensors'}
-        >
-          Pressure
-        </button>
-        <button
-          role="tab"
-          className={`tab ${tab === 'motor' ? 'tab--active' : ''}`}
-          onClick={() => setTab('motor')}
-          aria-selected={tab === 'motor'}
-        >
-          Motor
-        </button>
-      </nav>
-
-      {tab === 'sensors' && <GaugesPanel sensors={sensors} />}
-      {tab === 'motor'   && <MotorPanel  motorStatus={motorStatus} sendCmd={sendCmd} />}
+      <GaugesPanel
+        sensors={sensors}
+        manualOpen={manualOpen}
+        onToggleManual={toggleManual}
+        sendCmd={sendCmd}
+      />
     </div>
   );
 }

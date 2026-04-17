@@ -12,25 +12,15 @@ function generateDemoSensors(t) {
   );
 }
 
-/**
- * Manages WebSocket connection to the ESP32 and demo mode fallback.
- *
- * Returns:
- *   sensors      – float[4], current FSR readings (mmHg)
- *   motorStatus  – string, last status from ESP32 or local label
- *   connStatus   – 'demo' | 'connecting' | 'live' | 'error'
- *   connect(ip)  – open WebSocket to ws://<ip>/ws
- *   sendCmd(cmd) – send 'contract' | 'retract' | 'stop'
- *   startDemo()  – revert to simulated data
- */
 export function useWebSocket() {
   const [sensors,     setSensors]     = useState([0, 0, 0, 0]);
   const [motorStatus, setMotorStatus] = useState('Idle');
   const [connStatus,  setConnStatus]  = useState('demo');
 
-  const ws        = useRef(null);
-  const demoTimer = useRef(null);
-  const demoT     = useRef(0);
+  const ws         = useRef(null);
+  const demoTimer  = useRef(null);
+  const demoT      = useRef(0);
+  const demoPaused = useRef(false);
 
   const startDemo = useCallback(() => {
     ws.current?.close();
@@ -38,11 +28,16 @@ export function useWebSocket() {
     clearInterval(demoTimer.current);
     setConnStatus('demo');
     demoT.current = 0;
+    demoPaused.current = false;
     demoTimer.current = setInterval(() => {
+      if (demoPaused.current) return; // frozen during manual override
       demoT.current += 0.06;
       setSensors(generateDemoSensors(demoT.current));
     }, DEMO_INTERVAL_MS);
   }, []);
+
+  const pauseDemo  = useCallback(() => { demoPaused.current = true;  }, []);
+  const resumeDemo = useCallback(() => { demoPaused.current = false; }, []);
 
   const connect = useCallback((ip) => {
     if (!ip.trim()) return;
@@ -95,5 +90,5 @@ export function useWebSocket() {
     };
   }, [startDemo]);
 
-  return { sensors, motorStatus, connStatus, connect, sendCmd, startDemo };
+  return { sensors, motorStatus, connStatus, connect, sendCmd, startDemo, pauseDemo, resumeDemo };
 }

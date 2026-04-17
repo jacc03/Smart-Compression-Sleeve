@@ -33,15 +33,42 @@ function MotorWarning({ avg }) {
   return null;
 }
 
-export default function GaugesPanel({ sensors }) {
+function ManualControls({ sendCmd, onToggleManual }) {
+  return (
+    <div className="manual-panel">
+      <p className="manual-panel-label">Auto-control paused — driving motor manually</p>
+      <div className="manual-btns">
+        <button
+          className="manual-btn manual-btn--contract"
+          onClick={() => sendCmd('contract')}
+        >
+          <span className="manual-btn-arrow">▲</span>
+          Contract
+        </button>
+        <button
+          className="manual-btn manual-btn--retract"
+          onClick={() => sendCmd('retract')}
+        >
+          <span className="manual-btn-arrow">▼</span>
+          Retract
+        </button>
+      </div>
+      <button className="manual-resume" onClick={onToggleManual}>
+        ✓ Resume Auto-Control
+      </button>
+    </div>
+  );
+}
+
+export default function GaugesPanel({ sensors, manualOpen, onToggleManual, sendCmd }) {
   const avg    = sensors.reduce((a, b) => a + b, 0) / sensors.length;
   const status = getStatus(avg);
   const color  = STATUS_COLOR[status];
 
   return (
     <div className="panel">
-      {/* Motor warning — shown when auto-control is active */}
-      <MotorWarning avg={avg} />
+      {/* Auto-control warning — hidden during manual override */}
+      {!manualOpen && <MotorWarning avg={avg} />}
 
       {/* 4-channel gauges */}
       <div className="gauges-grid">
@@ -61,7 +88,7 @@ export default function GaugesPanel({ sensors }) {
         <span className={`badge badge--${status}`}>{STATUS_LABEL[status]}</span>
       </div>
 
-      {/* Mini channel strip (vertical bar per sensor) */}
+      {/* Channel strip */}
       <div className="channel-strip">
         {sensors.map((v, i) => {
           const s = getStatus(v);
@@ -70,10 +97,7 @@ export default function GaugesPanel({ sensors }) {
               <div className="channel-track">
                 <div
                   className="channel-fill"
-                  style={{
-                    height: `${(v / 50) * 100}%`,
-                    background: STATUS_COLOR[s],
-                  }}
+                  style={{ height: `${(v / 50) * 100}%`, background: STATUS_COLOR[s] }}
                 />
                 <div
                   className="channel-target"
@@ -89,9 +113,20 @@ export default function GaugesPanel({ sensors }) {
         })}
       </div>
 
-      <p className="hint">
-        Target {TARGET_MIN}–{TARGET_MAX} mmHg · green band on each bar
-      </p>
+      {/* Emergency manual override toggle */}
+      <button
+        className={`emergency-btn ${manualOpen ? 'emergency-btn--active' : ''}`}
+        onClick={onToggleManual}
+        aria-pressed={manualOpen}
+      >
+        <span className="emergency-btn-icon">{manualOpen ? '✕' : '⚡'}</span>
+        {manualOpen ? 'Exit Manual Override' : 'Manual Override'}
+      </button>
+
+      {/* Inline manual controls — shown when toggled on */}
+      {manualOpen && <ManualControls sendCmd={sendCmd} onToggleManual={onToggleManual} />}
+
+      <p className="hint">Target {TARGET_MIN}–{TARGET_MAX} mmHg · green band on each bar</p>
     </div>
   );
 }

@@ -524,3 +524,131 @@ body {
   color: var(--text-1);
   font-size: 12px;
 }
+
+/* ─── Emergency manual override button ──────────────────────────────────── */
+
+.emergency-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 1.5px solid rgba(248,113,113,0.4);
+  background: rgba(248,113,113,0.07);
+  color: var(--high);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.emergency-btn:hover {
+  background: rgba(248,113,113,0.13);
+  border-color: rgba(248,113,113,0.65);
+}
+
+.emergency-btn--active {
+  background: rgba(248,113,113,0.15);
+  border-color: var(--high);
+  color: var(--high);
+  animation: emergency-pulse 1.8s ease-in-out infinite;
+}
+
+.emergency-btn-icon {
+  font-size: 16px;
+}
+
+@keyframes emergency-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(248,113,113,0.15); }
+}
+
+/* ─── Manual control panel ───────────────────────────────────────────────── */
+
+.manual-panel {
+  background: var(--surface);
+  border: 1.5px solid rgba(248,113,113,0.3);
+  border-radius: var(--r);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slide-down 0.2s ease;
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.manual-panel-label {
+  font-size: 11px;
+  color: var(--high);
+  text-align: center;
+  font-family: var(--font-mono);
+  opacity: 0.8;
+}
+
+.manual-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.manual-btn {
+  padding: 20px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 0.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  transition: opacity 0.1s;
+}
+
+.manual-btn:active { opacity: 0.75; }
+
+.manual-btn-arrow {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.manual-btn--contract {
+  background: rgba(96,165,250,0.10);
+  color: var(--low);
+  border-color: rgba(96,165,250,0.28);
+}
+
+.manual-btn--contract:hover { background: rgba(96,165,250,0.18); }
+
+.manual-btn--retract {
+  background: rgba(248,113,113,0.10);
+  color: var(--high);
+  border-color: rgba(248,113,113,0.28);
+}
+
+.manual-btn--retract:hover { background: rgba(248,113,113,0.18); }
+
+.manual-resume {
+  width: 100%;
+  padding: 13px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  background: rgba(74,222,128,0.08);
+  color: var(--ok);
+  border: 0.5px solid rgba(74,222,128,0.3);
+  transition: background 0.15s;
+}
+
+.manual-resume:hover { background: rgba(74,222,128,0.15); }
