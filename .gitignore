@@ -39,3 +39,9 @@
 
 # debug information files
 *.dwo
+
+# node.js stuff
+node_modules
+dist
+.DS_Store
+*.local
