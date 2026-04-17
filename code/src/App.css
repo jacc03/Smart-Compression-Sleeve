@@ -1,0 +1,654 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0b0f0e;
+  --surface:   #131918;
+  --surface-2: #1a2320;
+  --border:    #233028;
+  --border-2:  #334840;
+  --accent:    #22c55e;
+  --text-1:    #dff0e8;
+  --text-2:    #6b9285;
+  --text-3:    #3a5a50;
+  --ok:        #4ade80;
+  --low:       #60a5fa;
+  --high:      #f87171;
+  --font-ui:   'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --r:         12px;
+  --r-sm:      8px;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── App shell ──────────────────────────────────────────────────────────── */
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  padding-bottom: 32px;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 16px 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.conn-status {
+  font-size: 11px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ─── Connection row ─────────────────────────────────────────────────────── */
+
+.conn-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ip-input {
+  background: var(--surface);
+  border: 0.5px solid var(--border-2);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding: 6px 10px;
+  width: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ip-input:focus {
+  border-color: var(--accent);
+}
+
+.ip-input::placeholder {
+  color: var(--text-3);
+}
+
+.btn-sm {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border-2);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-sm:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-sm--muted {
+  color: var(--text-2);
+}
+
+/* ─── Tabs ───────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  margin: 14px 16px 0;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab--active {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+/* ─── Panel wrapper ──────────────────────────────────────────────────────── */
+
+.panel {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* ─── Motor warning banner ───────────────────────────────────────────────── */
+
+.motor-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  border: 0.5px solid;
+  font-size: 13px;
+  font-weight: 500;
+  animation: warning-pulse 2s ease-in-out infinite;
+}
+
+.motor-warning--tightening {
+  background: rgba(248,113,113,0.10);
+  color: var(--high);
+  border-color: rgba(248,113,113,0.30);
+}
+
+.motor-warning--releasing {
+  background: rgba(96,165,250,0.10);
+  color: var(--low);
+  border-color: rgba(96,165,250,0.30);
+}
+
+.motor-warning-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.motor-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.motor-warning-title {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.motor-warning-sub {
+  font-size: 11px;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+@keyframes warning-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+/* ─── Gauges grid ────────────────────────────────────────────────────────── */
+
+.gauges-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.gauge-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-svg {
+  width: 100%;
+  max-width: 140px;
+}
+
+.gauge-val {
+  font-size: 17px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.gauge-unit {
+  font-size: 9px;
+  font-family: var(--font-ui);
+}
+
+.gauge-scale {
+  font-size: 8px;
+  font-family: var(--font-mono);
+}
+
+.gauge-pin {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+/* ─── Average card ───────────────────────────────────────────────────────── */
+
+.avg-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.avg-label {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+
+.avg-val {
+  font-size: 32px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.avg-unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.badge--ok   { background: rgba(74,222,128,0.12);  color: var(--ok);   }
+.badge--low  { background: rgba(248,113,113,0.12); color: var(--high); }
+.badge--high { background: rgba(96,165,250,0.12);  color: var(--low);  }
+
+/* ─── Channel strip ──────────────────────────────────────────────────────── */
+
+.channel-strip {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.channel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.channel-track {
+  width: 20px;
+  height: 56px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+}
+
+.channel-fill {
+  width: 100%;
+  border-radius: 4px;
+  transition: height 0.3s ease;
+}
+
+.channel-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(34,197,94,0.18);
+  pointer-events: none;
+}
+
+.channel-num {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+/* ─── Motor status ───────────────────────────────────────────────────────── */
+
+.motor-status-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 24px;
+  text-align: center;
+}
+
+.motor-status-label {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+
+.motor-status-val {
+  font-size: 22px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-1);
+}
+
+/* ─── Motor buttons ──────────────────────────────────────────────────────── */
+
+.motor-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.motor-btn {
+  padding: 22px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 0.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  transition: opacity 0.1s;
+}
+
+.motor-btn:active { opacity: 0.75; }
+
+.motor-btn-arrow {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.motor-btn--contract {
+  background: rgba(96,165,250,0.10);
+  color: var(--low);
+  border-color: rgba(96,165,250,0.28);
+}
+
+.motor-btn--contract:hover {
+  background: rgba(96,165,250,0.18);
+}
+
+.motor-btn--retract {
+  background: rgba(248,113,113,0.10);
+  color: var(--high);
+  border-color: rgba(248,113,113,0.28);
+}
+
+.motor-btn--retract:hover {
+  background: rgba(248,113,113,0.18);
+}
+
+.motor-btn-stop {
+  width: 100%;
+  padding: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 0.5px solid var(--border-2);
+  transition: color 0.15s, background 0.15s;
+}
+
+.motor-btn-stop:hover {
+  color: var(--text-1);
+  background: var(--surface);
+}
+
+/* ─── Pin reference table ────────────────────────────────────────────────── */
+
+.pin-table {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px 16px;
+}
+
+.pin-table-title {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.pin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.pin-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pin-label {
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.pin-value {
+  font-family: var(--font-mono);
+  color: var(--text-1);
+  font-size: 12px;
+}
+
+/* ─── Emergency manual override button ──────────────────────────────────── */
+
+.emergency-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 1.5px solid rgba(248,113,113,0.4);
+  background: rgba(248,113,113,0.07);
+  color: var(--high);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.emergency-btn:hover {
+  background: rgba(248,113,113,0.13);
+  border-color: rgba(248,113,113,0.65);
+}
+
+.emergency-btn--active {
+  background: rgba(248,113,113,0.15);
+  border-color: var(--high);
+  color: var(--high);
+  animation: emergency-pulse 1.8s ease-in-out infinite;
+}
+
+.emergency-btn-icon {
+  font-size: 16px;
+}
+
+@keyframes emergency-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(248,113,113,0.15); }
+}
+
+/* ─── Manual control panel ───────────────────────────────────────────────── */
+
+.manual-panel {
+  background: var(--surface);
+  border: 1.5px solid rgba(248,113,113,0.3);
+  border-radius: var(--r);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slide-down 0.2s ease;
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.manual-panel-label {
+  font-size: 11px;
+  color: var(--high);
+  text-align: center;
+  font-family: var(--font-mono);
+  opacity: 0.8;
+}
+
+.manual-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.manual-btn {
+  padding: 20px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 0.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  transition: opacity 0.1s;
+}
+
+.manual-btn:active { opacity: 0.75; }
+
+.manual-btn-arrow {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.manual-btn--contract {
+  background: rgba(96,165,250,0.10);
+  color: var(--low);
+  border-color: rgba(96,165,250,0.28);
+}
+
+.manual-btn--contract:hover { background: rgba(96,165,250,0.18); }
+
+.manual-btn--retract {
+  background: rgba(248,113,113,0.10);
+  color: var(--high);
+  border-color: rgba(248,113,113,0.28);
+}
+
+.manual-btn--retract:hover { background: rgba(248,113,113,0.18); }
+
+.manual-resume {
+  width: 100%;
+  padding: 13px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--r);
+  cursor: pointer;
+  background: rgba(74,222,128,0.08);
+  color: var(--ok);
+  border: 0.5px solid rgba(74,222,128,0.3);
+  transition: background 0.15s;
+}
+
+.manual-resume:hover { background: rgba(74,222,128,0.15); }
