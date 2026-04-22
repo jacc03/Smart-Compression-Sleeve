@@ -40,7 +40,8 @@ const int PWM_FREQ    = 5000;
 const int PWM_RES     = 8;
 
 // ─── Manual rate limiting ─────────────────────────────────────────────────────
-const int MANUAL_CMD_GAP_MS  = 300; // Minimum ms between motor direction changes
+const int MANUAL_PULSE_MS    = 40;  // How long each manual button press runs (ms) — tune this
+const int MANUAL_CMD_GAP_MS  = 300; // Minimum ms between commands
 unsigned long lastManualCmd  = 0;
 
 // ─── Pulsing & Timing ────────────────────────────────────────────────────────
@@ -101,15 +102,31 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     manualMode    = true;
     manualTimeout = millis() + 10000;
 
-    if (cmd == "contract") {
+    if (cmd == "pause") {
+      // Immediately enter manual mode — stops auto-control loop
+      manualMode    = true;
+      manualTimeout = millis() + 60000; // 60s timeout when paused with no commands
+      motorBrake();
+      delay(50);
+      motorSleep();
+    }
+    else if (cmd == "contract") {
       if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
         motorForward(MOTOR_SPEED_MANUAL);
+        delay(MANUAL_PULSE_MS);
+        motorBrake();
+        delay(30);
+        motorSleep();
         lastManualCmd = millis();
       }
     }
     else if (cmd == "retract") {
       if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
         motorReverse(MOTOR_SPEED_MANUAL);
+        delay(MANUAL_PULSE_MS);
+        motorBrake();
+        delay(30);
+        motorSleep();
         lastManualCmd = millis();
       }
     }
@@ -192,10 +209,11 @@ void loop() {
     Serial.println("Manual timeout — resuming auto.");
   }
 
-  // ── Auto-control logic ───────────────────────────────────────────────────
+  // ── Auto-control logic (completely skipped in manual mode) ───────────────
   String statusStr;
 
   if (manualMode) {
+    // Do nothing — motor is driven entirely by WebSocket commands
     statusStr = "Manual";
     Serial.println(statusStr);
   }
@@ -212,7 +230,7 @@ void loop() {
     } else {
       statusStr = "Low (" + String(consecutiveLowReads) + "/" + String(REQUIRED_LOW_READS) + ")";
       Serial.println(statusStr);
-      motorSleep();
+      // No motorSleep() here — don't touch motor state in manual mode
     }
   }
   else if (avgPressure > TARGET_MAX) {

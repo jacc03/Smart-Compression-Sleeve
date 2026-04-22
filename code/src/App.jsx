@@ -20,9 +20,10 @@ export default function App() {
   const toggleManual = () => {
     if (manualOpen) {
       sendCmd('stop');  // resume auto-control on ESP32
-      resumeDemo();     // resume demo sensor updates
+      resumeDemo();
     } else {
-      pauseDemo();      // freeze demo sensor updates
+      sendCmd('pause'); // tell ESP32 to enter manual mode immediately
+      pauseDemo();
     }
     setManualOpen(prev => !prev);
   };
