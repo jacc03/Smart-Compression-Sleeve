@@ -35,9 +35,13 @@ const float SENSITIVITY_BOOST = 2.0;
 
 // ─── PWM Speed Control (ESP32 Core V3.x API) ─────────────────────────────────
 const int MOTOR_SPEED        = 255; // Auto-control speed — full torque for pulsing
-const int MOTOR_SPEED_MANUAL = 120; // Manual speed — slower for fine adjustment
+const int MOTOR_SPEED_MANUAL = 255; // Manual speed
 const int PWM_FREQ    = 5000;
 const int PWM_RES     = 8;
+
+// ─── Manual rate limiting ─────────────────────────────────────────────────────
+const int MANUAL_CMD_GAP_MS  = 300; // Minimum ms between motor direction changes
+unsigned long lastManualCmd  = 0;
 
 // ─── Pulsing & Timing ────────────────────────────────────────────────────────
 const int MOTOR_PULSE_MS  = 75;
@@ -98,10 +102,16 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     manualTimeout = millis() + 10000;
 
     if (cmd == "contract") {
-      motorForward(MOTOR_SPEED_MANUAL);
+      if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
+        motorForward(MOTOR_SPEED_MANUAL);
+        lastManualCmd = millis();
+      }
     }
     else if (cmd == "retract") {
-      motorReverse(MOTOR_SPEED_MANUAL);
+      if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
+        motorReverse(MOTOR_SPEED_MANUAL);
+        lastManualCmd = millis();
+      }
     }
     else if (cmd == "stop") {
       motorBrake();
