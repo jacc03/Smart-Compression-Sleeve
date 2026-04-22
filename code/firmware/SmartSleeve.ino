@@ -1,15 +1,15 @@
 /*
  * ESP32 Smart Sleeve - WebSocket Dashboard
  * Features: WiFi AP, WebSocket, PWM Speed Control, Outlier Rejection,
- *           Debounce, Discrete Pulsing, Brake Mode
+ *           Debounce, Discrete Pulsing, Brake Mode, Non-blocking timing
  * Hardware: DRV8833 (AIN1=25, AIN2=26, SLP=27) + 4x FSR 406 (34, 35, 32, 33)
  *
  * Library required (install via Arduino Library Manager):
- *   - WebSockets by Markus Sattler (Links2004)  ← search "WebSockets"
+ *   - WebSockets by Markus Sattler (Links2004)
  *
  * After flashing:
- *   1. Connect your phone to WiFi network "SCS-Device" (password: scs12345)
- *   2. Open the web app and connect to: 192.168.4.1
+ *   1. Connect to WiFi network "SCS-Device" (password: scs12345)
+ *   2. Open web app and connect to: 192.168.4.1
  */
 
 #include <WiFi.h>
@@ -33,30 +33,39 @@ const float TARGET_MAX = 40.0;
 const float OUTLIER_THRESHOLD = 7.0;
 const float SENSITIVITY_BOOST = 2.0;
 
-// ─── PWM Speed Control (ESP32 Core V3.x API) ─────────────────────────────────
-const int MOTOR_SPEED        = 255; // Auto-control speed — full torque for pulsing
-const int MOTOR_SPEED_MANUAL = 255; // Manual speed
-const int PWM_FREQ    = 5000;
-const int PWM_RES     = 8;
+// ─── PWM Speed Control ───────────────────────────────────────────────────────
+const int MOTOR_SPEED        = 255;
+const int MOTOR_SPEED_MANUAL = 255;
+const int PWM_FREQ           = 5000;
+const int PWM_RES            = 8;
 
-// ─── Manual rate limiting ─────────────────────────────────────────────────────
-const int MANUAL_PULSE_MS    = 20;  // How long each manual button press runs (ms)
-const int MANUAL_CMD_GAP_MS  = 300; // Minimum ms between commands
-unsigned long lastManualCmd  = 0;
-
-// ─── Pulsing & Timing ────────────────────────────────────────────────────────
-const int MOTOR_PULSE_MS  = 75;
-const int SETTLE_DELAY_MS = 400;
+// ─── Timing (all non-blocking via millis) ────────────────────────────────────
+const unsigned long SENSOR_INTERVAL  = 400;  // How often to read sensors & run auto-control
+const unsigned long MOTOR_PULSE_MS   = 75;   // Auto-control pulse duration
+const unsigned long MANUAL_PULSE_MS  = 20;   // Manual pulse duration
+const unsigned long MANUAL_CMD_GAP   = 300;  // Min gap between manual commands
+const unsigned long MOTOR_BRAKE_MS   = 50;   // Brake hold duration before sleep
+const unsigned long MANUAL_TIMEOUT   = 60000; // Auto-resume if no command for 60s
 
 // ─── Debounce ────────────────────────────────────────────────────────────────
 int consecutiveLowReads      = 0;
 const int REQUIRED_LOW_READS = 3;
 
-// ─── WebSocket Server (port 81) ──────────────────────────────────────────────
-WebSocketsServer wsServer = WebSocketsServer(81);
+// ─── State machine for non-blocking motor control ────────────────────────────
+enum MotorState { MOTOR_IDLE, MOTOR_RUNNING, MOTOR_BRAKING };
+MotorState motorState       = MOTOR_IDLE;
+unsigned long motorStateEnd = 0;  // When to transition to next state
 
-bool manualMode             = false;
-unsigned long manualTimeout = 0;
+// ─── Timing trackers ─────────────────────────────────────────────────────────
+unsigned long lastSensorRead = 0;
+unsigned long lastManualCmd  = 0;
+unsigned long manualTimeout  = 0;
+
+// ─── Manual mode flag ────────────────────────────────────────────────────────
+bool manualMode = false;
+
+// ─── WebSocket ───────────────────────────────────────────────────────────────
+WebSocketsServer wsServer = WebSocketsServer(81);
 
 // ─── Motor Helpers ───────────────────────────────────────────────────────────
 void motorForward(int speed = MOTOR_SPEED) {
@@ -83,6 +92,28 @@ void motorSleep() {
   digitalWrite(SLP, LOW);
 }
 
+// Kick off a non-blocking motor pulse — auto-control only
+void startPulse(bool forward) {
+  if (forward) motorForward(); else motorReverse();
+  motorState    = MOTOR_RUNNING;
+  motorStateEnd = millis() + MOTOR_PULSE_MS;
+}
+
+// Called every loop() — advances motor state without blocking
+void tickMotor() {
+  if (motorState == MOTOR_IDLE) return;
+
+  if (motorState == MOTOR_RUNNING && millis() >= motorStateEnd) {
+    motorBrake();
+    motorState    = MOTOR_BRAKING;
+    motorStateEnd = millis() + MOTOR_BRAKE_MS;
+  }
+  else if (motorState == MOTOR_BRAKING && millis() >= motorStateEnd) {
+    motorSleep();
+    motorState = MOTOR_IDLE;
+  }
+}
+
 // ─── WebSocket Event Handler ─────────────────────────────────────────────────
 void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_CONNECTED) {
@@ -91,6 +122,7 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
   else if (type == WStype_DISCONNECTED) {
     Serial.printf("[WS] Client #%u disconnected\n", clientId);
     manualMode = false;
+    motorState = MOTOR_IDLE;
     motorSleep();
   }
   else if (type == WStype_TEXT) {
@@ -99,17 +131,18 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     cmd.trim();
     Serial.printf("[WS] Command: %s\n", cmd.c_str());
 
-    manualMode = true;
-
     if (cmd == "pause") {
-      manualTimeout = millis() + 60000; // 60s — stays in manual until resume
+      manualMode    = true;
+      manualTimeout = millis() + MANUAL_TIMEOUT;
+      motorState    = MOTOR_IDLE;
       motorBrake();
-      delay(50);
+      delay(30);
       motorSleep();
     }
     else if (cmd == "contract") {
-      manualTimeout = millis() + 60000; // refresh timeout on each press
-      if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
+      if (!manualMode) return; // safety — ignore if not in manual mode
+      manualTimeout = millis() + MANUAL_TIMEOUT;
+      if (millis() - lastManualCmd >= MANUAL_CMD_GAP) {
         motorForward(MOTOR_SPEED_MANUAL);
         delay(MANUAL_PULSE_MS);
         motorBrake();
@@ -119,8 +152,9 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
       }
     }
     else if (cmd == "retract") {
-      manualTimeout = millis() + 60000; // refresh timeout on each press
-      if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
+      if (!manualMode) return; // safety — ignore if not in manual mode
+      manualTimeout = millis() + MANUAL_TIMEOUT;
+      if (millis() - lastManualCmd >= MANUAL_CMD_GAP) {
         motorReverse(MOTOR_SPEED_MANUAL);
         delay(MANUAL_PULSE_MS);
         motorBrake();
@@ -129,21 +163,15 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
         lastManualCmd = millis();
       }
     }
-    else if (cmd == "stop") {
-      // Just halt the motor — stay in manual mode
-      motorBrake();
-      delay(50);
-      motorSleep();
-    }
     else if (cmd == "resume") {
-      // Exit manual mode — hand control back to auto loop
-      motorBrake();
-      delay(50);
-      motorSleep();
       manualMode = false;
+      motorState = MOTOR_IDLE;
+      motorSleep();
       consecutiveLowReads = 0;
-      Serial.println("[WS] Manual mode OFF — auto-control resumed");
+      Serial.println("[WS] Auto-control resumed");
     }
+    // "stop" from onPointerUp is intentionally ignored —
+    // manual pulses are self-terminating so no stop needed
   }
 }
 
@@ -172,9 +200,25 @@ void setup() {
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
+  // Always service WebSocket first — no delays block this now
   wsServer.loop();
 
-  // ── Read all 4 sensors ───────────────────────────────────────────────────
+  // Advance non-blocking motor state machine
+  tickMotor();
+
+  // Manual mode timeout check
+  if (manualMode && millis() > manualTimeout) {
+    manualMode = false;
+    motorState = MOTOR_IDLE;
+    motorSleep();
+    Serial.println("Manual timeout — resuming auto.");
+  }
+
+  // Only run sensor reads and auto-control on interval
+  if (millis() - lastSensorRead < SENSOR_INTERVAL) return;
+  lastSensorRead = millis();
+
+  // ── Read sensors ─────────────────────────────────────────────────────────
   float pressures[4];
   float totalPressure = 0;
 
@@ -190,7 +234,7 @@ void loop() {
 
   float avgPressure = totalPressure / 4.0;
 
-  // ── Outlier detection & rejection ───────────────────────────────────────
+  // ── Outlier rejection ────────────────────────────────────────────────────
   float maxDeviation = 0;
   int   outlierIndex = -1;
 
@@ -210,52 +254,39 @@ void loop() {
 
   Serial.printf("| Final Avg: %.1f mmHg | ", avgPressure);
 
-  // ── Manual mode timeout ──────────────────────────────────────────────────
-  if (manualMode && millis() > manualTimeout) {
-    manualMode = false;
-    motorSleep();
-    Serial.println("Manual timeout — resuming auto.");
-  }
-
-  // ── Auto-control logic (completely skipped in manual mode) ───────────────
+  // ── Auto-control (skipped entirely in manual mode) ───────────────────────
   String statusStr;
 
   if (manualMode) {
-    // Do nothing — motor is driven entirely by WebSocket commands
     statusStr = "Manual";
     Serial.println(statusStr);
   }
   else if (avgPressure < TARGET_MIN) {
     consecutiveLowReads++;
-    if (consecutiveLowReads >= REQUIRED_LOW_READS) {
+    if (consecutiveLowReads >= REQUIRED_LOW_READS && motorState == MOTOR_IDLE) {
       statusStr = "Tightening";
       Serial.println(statusStr);
-      motorForward();
-      delay(MOTOR_PULSE_MS);
-      motorBrake();
-      delay(50);
-      motorSleep();
+      startPulse(true);
     } else {
       statusStr = "Low (" + String(consecutiveLowReads) + "/" + String(REQUIRED_LOW_READS) + ")";
       Serial.println(statusStr);
-      // No motorSleep() here — don't touch motor state in manual mode
     }
   }
   else if (avgPressure > TARGET_MAX) {
     consecutiveLowReads = 0;
-    statusStr = "Releasing";
-    Serial.println(statusStr);
-    motorReverse();
-    delay(MOTOR_PULSE_MS);
-    motorBrake();
-    delay(50);
-    motorSleep();
+    if (motorState == MOTOR_IDLE) {
+      statusStr = "Releasing";
+      Serial.println(statusStr);
+      startPulse(false);
+    } else {
+      statusStr = "Releasing";
+    }
   }
   else {
     consecutiveLowReads = 0;
     statusStr = "Target Met";
     Serial.println(statusStr);
-    motorSleep();
+    if (motorState == MOTOR_IDLE) motorSleep();
   }
 
   // ── Broadcast JSON ───────────────────────────────────────────────────────
@@ -267,6 +298,4 @@ void loop() {
   json += "],\"avg\":" + String(avgPressure, 1);
   json += ",\"st\":\"" + statusStr + "\"}";
   wsServer.broadcastTXT(json);
-
-  delay(SETTLE_DELAY_MS);
 }

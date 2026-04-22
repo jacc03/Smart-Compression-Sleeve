@@ -115,9 +115,6 @@ export default function GaugesPanel({ sensors, manualOpen, onToggleManual, sendC
             <button
               className="manual-btn manual-btn--contract"
               onPointerDown={() => sendCmd('contract')}
-              onPointerUp={() => sendCmd('stop')}
-              onPointerLeave={() => sendCmd('stop')}
-              onPointerCancel={() => sendCmd('stop')}
             >
               <span className="manual-btn-arrow">▲</span>
               Contract
@@ -125,9 +122,6 @@ export default function GaugesPanel({ sensors, manualOpen, onToggleManual, sendC
             <button
               className="manual-btn manual-btn--retract"
               onPointerDown={() => sendCmd('retract')}
-              onPointerUp={() => sendCmd('stop')}
-              onPointerLeave={() => sendCmd('stop')}
-              onPointerCancel={() => sendCmd('stop')}
             >
               <span className="manual-btn-arrow">▼</span>
               Retract
