@@ -40,7 +40,7 @@ const int PWM_FREQ    = 5000;
 const int PWM_RES     = 8;
 
 // ─── Manual rate limiting ─────────────────────────────────────────────────────
-const int MANUAL_PULSE_MS    = 40;  // How long each manual button press runs (ms) — tune this
+const int MANUAL_PULSE_MS    = 20;  // How long each manual button press runs (ms)
 const int MANUAL_CMD_GAP_MS  = 300; // Minimum ms between commands
 unsigned long lastManualCmd  = 0;
 
@@ -131,10 +131,19 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
       }
     }
     else if (cmd == "stop") {
+      // Just halt the motor — stay in manual mode
+      motorBrake();
+      delay(50);
+      motorSleep();
+    }
+    else if (cmd == "resume") {
+      // Exit manual mode — hand control back to auto loop
       motorBrake();
       delay(50);
       motorSleep();
       manualMode = false;
+      consecutiveLowReads = 0;
+      Serial.println("[WS] Manual mode OFF — auto-control resumed");
     }
   }
 }
