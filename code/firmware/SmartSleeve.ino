@@ -34,7 +34,8 @@ const float OUTLIER_THRESHOLD = 7.0;
 const float SENSITIVITY_BOOST = 2.0;
 
 // ─── PWM Speed Control (ESP32 Core V3.x API) ─────────────────────────────────
-const int MOTOR_SPEED = 255;
+const int MOTOR_SPEED        = 255; // Auto-control speed — full torque for pulsing
+const int MOTOR_SPEED_MANUAL = 120; // Manual speed — slower for fine adjustment
 const int PWM_FREQ    = 5000;
 const int PWM_RES     = 8;
 
@@ -53,16 +54,16 @@ bool manualMode             = false;
 unsigned long manualTimeout = 0;
 
 // ─── Motor Helpers ───────────────────────────────────────────────────────────
-void motorForward() {
+void motorForward(int speed = MOTOR_SPEED) {
   digitalWrite(SLP, HIGH);
-  ledcWrite(AIN1, MOTOR_SPEED);
+  ledcWrite(AIN1, speed);
   ledcWrite(AIN2, 0);
 }
 
-void motorReverse() {
+void motorReverse(int speed = MOTOR_SPEED) {
   digitalWrite(SLP, HIGH);
   ledcWrite(AIN1, 0);
-  ledcWrite(AIN2, MOTOR_SPEED);
+  ledcWrite(AIN2, speed);
 }
 
 void motorBrake() {
@@ -97,10 +98,10 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     manualTimeout = millis() + 10000;
 
     if (cmd == "contract") {
-      motorForward();
+      motorForward(MOTOR_SPEED_MANUAL);
     }
     else if (cmd == "retract") {
-      motorReverse();
+      motorReverse(MOTOR_SPEED_MANUAL);
     }
     else if (cmd == "stop") {
       motorBrake();
