@@ -46,7 +46,7 @@ export function useWebSocket() {
     setConnStatus('connecting');
 
     try {
-      const socket = new WebSocket(`ws://${ip.trim()}/ws`);
+      const socket = new WebSocket(`ws://${ip.trim()}:81`);
 
       socket.onopen = () => setConnStatus('live');
 

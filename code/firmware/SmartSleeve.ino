@@ -4,9 +4,8 @@
  *           Debounce, Discrete Pulsing, Brake Mode
  * Hardware: DRV8833 (AIN1=25, AIN2=26, SLP=27) + 4x FSR 406 (34, 35, 32, 33)
  *
- * Libraries required (install via Arduino Library Manager):
- *   - ESPAsyncWebServer  (by lacamera / Me-No-Dev fork)
- *   - AsyncTCP           (by dvarrel / Me-No-Dev fork)
+ * Library required (install via Arduino Library Manager):
+ *   - WebSockets by Markus Sattler (Links2004)  ← search "WebSockets"
  *
  * After flashing:
  *   1. Connect your phone to WiFi network "SCS-Device" (password: scs12345)
@@ -14,12 +13,11 @@
  */
 
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <AsyncTCP.h>
+#include <WebSocketsServer.h>
 
 // ─── Access Point Credentials ────────────────────────────────────────────────
 const char* AP_SSID     = "SCS-Device";
-const char* AP_PASSWORD = "scs12345";   // min 8 chars, "" for open network
+const char* AP_PASSWORD = "scs12345";
 
 // ─── Pin Definitions ─────────────────────────────────────────────────────────
 const int AIN1 = 25;
@@ -32,28 +30,27 @@ const float TARGET_MIN = 20.0;
 const float TARGET_MAX = 40.0;
 
 // ─── Sensor Calibration ──────────────────────────────────────────────────────
-const float OUTLIER_THRESHOLD = 7.0;  // Drop sensor if deviation > 7 mmHg from avg
-const float SENSITIVITY_BOOST = 2.0;  // Calibration multiplier (1.0 = raw)
+const float OUTLIER_THRESHOLD = 7.0;
+const float SENSITIVITY_BOOST = 2.0;
 
 // ─── PWM Speed Control (ESP32 Core V3.x API) ─────────────────────────────────
-const int MOTOR_SPEED = 255;  // 0–255, max torque to overcome spool tension
-const int PWM_FREQ    = 5000; // 5 kHz, standard for small DC motors
-const int PWM_RES     = 8;    // 8-bit resolution
+const int MOTOR_SPEED = 255;
+const int PWM_FREQ    = 5000;
+const int PWM_RES     = 8;
 
 // ─── Pulsing & Timing ────────────────────────────────────────────────────────
-const int MOTOR_PULSE_MS  = 75;  // Motor run duration per burst (ms) — tune this
-const int SETTLE_DELAY_MS = 400; // Wait after moving before next sensor read
+const int MOTOR_PULSE_MS  = 75;
+const int SETTLE_DELAY_MS = 400;
 
 // ─── Debounce ────────────────────────────────────────────────────────────────
-int consecutiveLowReads       = 0;
-const int REQUIRED_LOW_READS  = 3; // Must read low this many times before tightening
+int consecutiveLowReads      = 0;
+const int REQUIRED_LOW_READS = 3;
 
-// ─── Server & Manual Mode State ──────────────────────────────────────────────
-AsyncWebServer server(80);
-AsyncWebSocket  ws("/ws");
+// ─── WebSocket Server (port 81) ──────────────────────────────────────────────
+WebSocketsServer wsServer = WebSocketsServer(81);
 
-bool manualMode          = false;
-unsigned long manualTimeout = 0; // Auto-resume after 10s of no manual command
+bool manualMode             = false;
+unsigned long manualTimeout = 0;
 
 // ─── Motor Helpers ───────────────────────────────────────────────────────────
 void motorForward() {
@@ -69,8 +66,6 @@ void motorReverse() {
 }
 
 void motorBrake() {
-  // Driving both pins HIGH puts DRV8833 into active brake mode
-  // SLP must stay HIGH to keep the driver awake for braking to work
   digitalWrite(SLP, HIGH);
   ledcWrite(AIN1, 255);
   ledcWrite(AIN2, 255);
@@ -79,33 +74,22 @@ void motorBrake() {
 void motorSleep() {
   ledcWrite(AIN1, 0);
   ledcWrite(AIN2, 0);
-  digitalWrite(SLP, LOW); // Full sleep — saves battery when idle
+  digitalWrite(SLP, LOW);
 }
 
-// ─── Sensor Reading ──────────────────────────────────────────────────────────
-// Returns calibrated pressure in mmHg for a given ADC pin
-float readPressure(int pin) {
-  int raw = analogRead(pin);
-  float p = ((raw - 162) * (50.0 / (3256.0 - 162.0))) * SENSITIVITY_BOOST;
-  return max(p, 0.0f);
-}
-
-// ─── WebSocket Event Handler ──────────────────────────────────────────────────
-void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
-               AwsEventType type, void* arg, uint8_t* data, size_t len) {
-  if (type == WS_EVT_CONNECT) {
-    Serial.printf("[WS] Client #%u connected\n", client->id());
+// ─── WebSocket Event Handler ─────────────────────────────────────────────────
+void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length) {
+  if (type == WStype_CONNECTED) {
+    Serial.printf("[WS] Client #%u connected\n", clientId);
   }
-  else if (type == WS_EVT_DISCONNECT) {
-    Serial.printf("[WS] Client #%u disconnected\n", client->id());
-    if (server->count() == 0) {
-      manualMode = false;
-      motorSleep();
-    }
+  else if (type == WStype_DISCONNECTED) {
+    Serial.printf("[WS] Client #%u disconnected\n", clientId);
+    manualMode = false;
+    motorSleep();
   }
-  else if (type == WS_EVT_DATA) {
+  else if (type == WStype_TEXT) {
     String cmd = "";
-    for (size_t i = 0; i < len; i++) cmd += (char)data[i];
+    for (size_t i = 0; i < length; i++) cmd += (char)payload[i];
     cmd.trim();
     Serial.printf("[WS] Command: %s\n", cmd.c_str());
 
@@ -120,7 +104,7 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
     }
     else if (cmd == "stop") {
       motorBrake();
-      delay(50);      // Brief brake hold
+      delay(50);
       motorSleep();
       manualMode = false;
     }
@@ -131,40 +115,28 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 void setup() {
   Serial.begin(115200);
 
-  // Motor pins
   pinMode(SLP, OUTPUT);
   motorSleep();
 
-  // PWM setup (ESP32 Core V3.x — attach directly to pin, no channel needed)
   ledcAttach(AIN1, PWM_FREQ, PWM_RES);
   ledcAttach(AIN2, PWM_FREQ, PWM_RES);
 
   analogReadResolution(12);
 
-  // Start Access Point
   WiFi.softAP(AP_SSID, AP_PASSWORD);
   IPAddress ip = WiFi.softAPIP();
   Serial.printf("AP started — SSID: %s\n", AP_SSID);
-  Serial.printf("Connect phone to that network, then open web app at: http://%s\n", ip.toString().c_str());
-  Serial.printf("WebSocket: ws://%s/ws\n", ip.toString().c_str());
+  Serial.printf("WebSocket: ws://%s:81\n", ip.toString().c_str());
 
-  // WebSocket
-  ws.onEvent(onWsEvent);
-  server.addHandler(&ws);
+  wsServer.begin();
+  wsServer.onEvent(onWsEvent);
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->send(200, "text/plain",
-      "SCS WebSocket server running.\n"
-      "Connect phone to SCS-Device WiFi, then open web app at 192.168.4.1");
-  });
-
-  server.begin();
-  Serial.println("System ready. Outlier rejection, pulsing, debounce, and brake mode active.");
+  Serial.println("System ready.");
 }
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
-  ws.cleanupClients();
+  wsServer.loop();
 
   // ── Read all 4 sensors ───────────────────────────────────────────────────
   float pressures[4];
@@ -197,7 +169,7 @@ void loop() {
   if (maxDeviation > OUTLIER_THRESHOLD) {
     Serial.printf("| Drop FSR[%d] (dev: %.1f) ", outlierIndex, maxDeviation);
     avgPressure = (totalPressure - pressures[outlierIndex]) / 3.0;
-    pressures[outlierIndex] = avgPressure; // substitute avg so JSON stays clean
+    pressures[outlierIndex] = avgPressure;
   }
 
   Serial.printf("| Final Avg: %.1f mmHg | ", avgPressure);
@@ -209,15 +181,15 @@ void loop() {
     Serial.println("Manual timeout — resuming auto.");
   }
 
-  // ── Auto-control logic (skipped during manual override) ─────────────────
+  // ── Auto-control logic ───────────────────────────────────────────────────
   String statusStr;
 
   if (manualMode) {
     statusStr = "Manual";
+    Serial.println(statusStr);
   }
   else if (avgPressure < TARGET_MIN) {
     consecutiveLowReads++;
-
     if (consecutiveLowReads >= REQUIRED_LOW_READS) {
       statusStr = "Tightening";
       Serial.println(statusStr);
@@ -249,18 +221,15 @@ void loop() {
     motorSleep();
   }
 
-  // ── Broadcast JSON to all WebSocket clients ──────────────────────────────
-  // {"s":[12.3,15.1,14.8,13.9],"avg":14.0,"st":"Tightening"}
-  if (ws.count() > 0) {
-    String json = "{\"s\":[";
-    for (int i = 0; i < 4; i++) {
-      json += String(pressures[i], 1);
-      if (i < 3) json += ",";
-    }
-    json += "],\"avg\":" + String(avgPressure, 1);
-    json += ",\"st\":\"" + statusStr + "\"}";
-    ws.textAll(json);
+  // ── Broadcast JSON ───────────────────────────────────────────────────────
+  String json = "{\"s\":[";
+  for (int i = 0; i < 4; i++) {
+    json += String(pressures[i], 1);
+    if (i < 3) json += ",";
   }
+  json += "],\"avg\":" + String(avgPressure, 1);
+  json += ",\"st\":\"" + statusStr + "\"}";
+  wsServer.broadcastTXT(json);
 
   delay(SETTLE_DELAY_MS);
 }
