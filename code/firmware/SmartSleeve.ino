@@ -99,18 +99,16 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     cmd.trim();
     Serial.printf("[WS] Command: %s\n", cmd.c_str());
 
-    manualMode    = true;
-    manualTimeout = millis() + 10000;
+    manualMode = true;
 
     if (cmd == "pause") {
-      // Immediately enter manual mode — stops auto-control loop
-      manualMode    = true;
-      manualTimeout = millis() + 60000; // 60s timeout when paused with no commands
+      manualTimeout = millis() + 60000; // 60s — stays in manual until resume
       motorBrake();
       delay(50);
       motorSleep();
     }
     else if (cmd == "contract") {
+      manualTimeout = millis() + 60000; // refresh timeout on each press
       if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
         motorForward(MOTOR_SPEED_MANUAL);
         delay(MANUAL_PULSE_MS);
@@ -121,6 +119,7 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
       }
     }
     else if (cmd == "retract") {
+      manualTimeout = millis() + 60000; // refresh timeout on each press
       if (millis() - lastManualCmd >= MANUAL_CMD_GAP_MS) {
         motorReverse(MOTOR_SPEED_MANUAL);
         delay(MANUAL_PULSE_MS);
